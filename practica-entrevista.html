@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Practica entrevista CRM</title>
+  <style>
+    :root {
+      --card: #fffdf8;
+      --ink: #1f1a14;
+      --muted: #5d564c;
+      --line: #d9d0c3;
+      --ok: #1f7a45;
+      --ok-bg: #e7f6ec;
+      --bad: #a11d1d;
+      --bad-bg: #fdecec;
+      --accent: #0b5fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #efe8db 0%, #f7f5f1 40%, #eef2f7 100%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 28px 16px 60px; }
+    h1 { margin: 0 0 6px; font-size: 1.6rem; }
+    .sub { color: var(--muted); margin-bottom: 14px; }
+    .bar, .filtros {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    .pill, .filtro {
+      background: #fff; border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 12px; font-size: .88rem;
+    }
+    .filtro { cursor: pointer; }
+    .filtro.on { background: #e8efff; border-color: #8aa6ff; color: #123; font-weight: 600; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 18px 18px 14px; box-shadow: 0 8px 24px rgba(40,30,10,.05);
+    }
+    .tema { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); margin-bottom: 8px; }
+    .pregunta { font-size: 1.12rem; font-weight: 650; margin-bottom: 14px; line-height: 1.35; }
+    .opcion {
+      display: block; width: 100%; text-align: left; margin: 0 0 10px;
+      padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+      background: #fff; cursor: pointer; font-size: .98rem;
+    }
+    .opcion:hover:not(:disabled) { border-color: #9bb6ff; }
+    .opcion:disabled { cursor: default; }
+    .opcion.correcta { background: var(--ok-bg); border-color: var(--ok); }
+    .opcion.incorrecta { background: var(--bad-bg); border-color: var(--bad); }
+    .feedback {
+      margin-top: 12px; padding: 12px 14px; border-radius: 10px; display: none; line-height: 1.45;
+    }
+    .feedback.show { display: block; }
+    .feedback.ok { background: var(--ok-bg); color: #134628; }
+    .feedback.bad { background: var(--bad-bg); color: #6d1212; }
+    .feedback strong { display: block; margin-bottom: 6px; }
+    .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    button.nav {
+      border: 0; border-radius: 10px; padding: 10px 16px; background: var(--accent);
+      color: #fff; font-weight: 600; cursor: pointer;
+    }
+    button.nav.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    button.nav:disabled { opacity: .45; cursor: not-allowed; }
+    .fin { text-align: center; padding: 28px 10px; }
+    .fin h2 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Practica para la entrevista</h1>
+    <p class="sub">60 preguntas. Marca, mira si acertaste y lee la explicacion facil. Filtra por tema si quieres repasar solo una cosa.</p>
+    <div class="bar">
+      <span class="pill" id="progreso">Pregunta 1</span>
+      <span class="pill" id="score">Aciertos: 0</span>
+      <span class="pill" id="totalPill">Total: 0</span>
+    </div>
+    <div class="filtros" id="filtros"></div>
+    <div class="card" id="card"></div>
+  </div>
+  <script>
+    const banco = [
+      { tema: "Clean Architecture", q: "En Clean Architecture, ¿donde pondrias el Stored Procedure con Dapper?", opciones: ["En la capa Api (Controller)", "En Infrastructure (Repository)", "En el HTML de Angular", "En FluentValidation"], ok: 1, porque: "Controller = puerta. Service = cerebro. Repository = closet de datos. Dapper y los SP viven en el closet (Infrastructure)." },
+      { tema: "Clean Architecture", q: "¿Que capa NO deberia saber de SQL Server ni de connection strings?", opciones: ["Infrastructure", "Api puede leer config, pero Application no deberia depender de SQL concreto", "Solo Angular", "Ninguna regla existe"], ok: 1, porque: "Application habla de interfaces (ITareaRepository). Infrastructure es quien sabe conectar a SQL. Asi el cerebro no depende de la marca de la base." },
+      { tema: "Clean Architecture", q: "Si mañana cambias Dapper por otro acceso a datos, ¿que deberia romperse menos?", opciones: ["Todo el Angular", "Controllers y Services, si dependian de interfaces", "Solo los colores CSS", "Obligatorio reescribir FluentValidation"], ok: 1, porque: "Si el Service usa ITareaRepository, cambias la clase concreta en Infrastructure y registras otra en DI. El resto sigue igual." },
+      { tema: "Clean Architecture", q: "¿Quien orquesta la regla de negocio 'titulo minimo 3' antes de guardar?", opciones: ["El CSS", "El Service / Application (validator)", "El favicon", "Docker"], ok: 1, porque: "Esa regla es del negocio. Se valida en Application (FluentValidation + Service) antes de llamar al repository." },
+      { tema: "Clean Architecture", q: "DTO significa tipicamente:", opciones: ["Dato Tonto Obligatorio", "Data Transfer Object: objetito para mover datos entre capas/API", "Delete Table Option", "Docker Transfer Online"], ok: 1, porque: "Es una cajita de datos (Titulo, FechaInicio...). Viaja entre Angular, Controller y Service sin meter logica pesada." },
+
+      { tema: "SOLID", q: "¿Que significa la S de SOLID?", opciones: ["Super rapido", "Single Responsibility (una sola responsabilidad)", "SQL Server", "Shared Database"], ok: 1, porque: "Un lapiz escribe. Si tambien es regla, borrador y telefono, se vuelve un caos. Cada clase con un trabajo principal." },
+      { tema: "SOLID", q: "¿Para que sirve Dependency Inversion (la D)?", opciones: ["Para invertir el monitor", "Para depender de abstracciones (interfaces), no de clases concretas", "Para borrar la BD", "Para CSS invertido"], ok: 1, porque: "Pides 'un cargador' (interfaz), no 'este rojo marca X'. Luego enchufas la marca que quieras." },
+      { tema: "SOLID", q: "Open/Closed (O) dice que el codigo deberia estar:", opciones: ["Abierto a extension, cerrado a modificacion salvaje", "Siempre abierto en Notepad", "Cerrado con candado USB", "Sin interfaces"], ok: 0, porque: "Agregas comportamiento nuevo (otra implementacion) sin romper/reabrir todo lo viejo a machetazos." },
+      { tema: "SOLID", q: "Liskov (L) en simple:", opciones: ["Puedes sustituir una clase hija donde se esperaba la padre sin romper el programa", "Siempre usar localhost", "Nunca usar Angular", "Borrar tests"], ok: 0, porque: "Si te prometen 'un pato', el pato de plastico tambien debe 'hacer' lo esencial sin sorpresas raras." },
+      { tema: "SOLID", q: "Interface Segregation (I):", opciones: ["Mejor muchas interfaces chiquitas que una gigante que obliga a implementar de mas", "Una sola interfaz con 200 metodos siempre", "No usar interfaces", "Solo para PHP"], ok: 0, porque: "No obligues a alguien a firmar un contrato enorme si solo necesita 2 firmas." },
+
+      { tema: "ASP.NET", q: "Si la validacion falla al crear una tarea, ¿status?", opciones: ["200 OK", "201 Created", "400 Bad Request", "404 Not Found"], ok: 2, porque: "400 = 'te entendi, pero tus datos estan mal'." },
+      { tema: "ASP.NET", q: "Al crear bien un recurso, ¿status tipico?", opciones: ["201 Created (o 200 OK segun enunciado)", "404", "401 siempre", "302 redirect a Google"], ok: 0, porque: "201 dice: 'se creo algo nuevo'. Algunos enunciados aceptan 200." },
+      { tema: "ASP.NET", q: "404 Not Found en desactivar beneficio significa tipicamente:", opciones: ["El Id no existe", "El WiFi esta lento", "Angular esta en modo oscuro", "El SP salio perfecto"], ok: 0, porque: "Buscaste el beneficio 999 y no estaba. No found." },
+      { tema: "ASP.NET", q: "¿Que hace [ApiController] + [Route]?", opciones: ["Decoran el controller: es API y define la URL base", "Instalan SQL", "Crean el FormGroup", "Compilan Angular"], ok: 0, porque: "Son etiquetas: 'esta clase es un controller de API' y 'escucha en esta ruta'." },
+      { tema: "ASP.NET", q: "CancellationToken en metodos async sirve para:", opciones: ["Cancelar la operacion si el request se aborta", "Borrar la tabla", "Poner CORS", "Crear el DTO"], ok: 0, porque: "Si el usuario cierra la pestana, puedes parar trabajo inutil en el servidor." },
+      { tema: "ASP.NET", q: "Dependency Injection registra servicios para:", opciones: ["Que ASP.NET cree/inyecte dependencias (repo, service) solo", "Instalar Windows", "Reemplazar SQL", "Minificar CSS"], ok: 0, porque: "En Program/DI dices: cuando pidan ITareaService, dale TareaService. El constructor lo recibe automatico." },
+
+      { tema: "SQL / SP", q: "¿Para que sirve SCOPE_IDENTITY() despues de un INSERT?", opciones: ["Para borrar la fila", "Para saber el Id nuevo", "Para contar tablas", "Para cerrar conexion"], ok: 1, porque: "Te dice el numerito del registro que acabas de insertar." },
+      { tema: "SQL / SP", q: "Desactivar beneficio es:", opciones: ["DELETE", "Activo = 0 (borrado logico)", "Apagar laptop", "Nombre = NULL"], ok: 1, porque: "No tiras el papel: le pones sticker de 'no usar'." },
+      { tema: "SQL / SP", q: "THROW / RAISERROR en un SP sirve para:", opciones: ["Avisar error controlado (ej. categoria invalida)", "Hacer SELECT mas bonito", "Crear Angular", "Abrir Chrome"], ok: 0, porque: "Es gritar: 'esto no se puede'. El backend lo atrapa como error." },
+      { tema: "SQL / SP", q: "SET NOCOUNT ON tipicamente:", opciones: ["Evita mensajes extra de 'N rows affected' que a veces estorban", "Borra la BD", "Activa CORS", "Crea indices siempre"], ok: 0, porque: "Silencia ruidito de filas afectadas. En SP con Dapper suele ir bien." },
+      { tema: "SQL / SP", q: "PRIMARY KEY IDENTITY(1,1) significa:", opciones: ["Id automatico que sube de 1 en 1", "Clave USB", "Solo texto", "Obliga DELETE"], ok: 0, porque: "SQL numera solo: 1,2,3... no tienes que inventar el Id a mano." },
+      { tema: "SQL / SP", q: "FOREIGN KEY de Tarea.CategoriaId a CategoriaTarea sirve para:", opciones: ["No dejar tareas con categoria inventada", "Poner color rojo", "Hacer debounce", "Minificar JS"], ok: 0, porque: "Es una regla de familia: la tarea debe apuntar a una categoria que exista." },
+      { tema: "SQL / SP", q: "CREATE OR ALTER PROCEDURE sirve para:", opciones: ["Crear el SP o reemplazarlo si ya existia", "Borrar la tabla siempre", "Instalar .NET", "Abrir el front"], ok: 0, porque: "Puedes volver a ejecutar el script sin pelearte si el SP ya estaba." },
+
+      { tema: "SQL", q: "LIKE @Termino + '%' en documento busca:", opciones: ["Que empiece con el termino", "Que termine", "Exacto sin LIKE", "Nada"], ok: 0, porque: "'45%' encuentra 45892310. Empieza con 45." },
+      { tema: "SQL", q: "LIKE '%' + @Termino + '%' en razon social busca:", opciones: ["Solo al inicio", "Que contenga el texto en cualquier parte", "Solo numeros", "Solo correos"], ok: 1, porque: "'TEL' dentro de 'WIN TELECOMUNICACIONES'." },
+      { tema: "SQL", q: "TOP (@Limite) sirve para:", opciones: ["Devolver como maximo N filas", "Borrar N filas", "Crear N tablas", "Abrir N pestanas"], ok: 0, porque: "Si limite=10, como mucho 10 clientes. No te traes medio millon." },
+      { tema: "SQL", q: "WHERE Activo = 1 en busqueda de clientes:", opciones: ["Solo clientes activos, ignora dados de baja", "Trae todos siempre", "Solo inactivos", "Rompe el indice"], ok: 0, porque: "El enunciado dice buscar activos. Los de baja no salen." },
+      { tema: "SQL", q: "INNER JOIN Tarea con CategoriaTarea sirve para:", opciones: ["Traer el nombre de categoria junto a la tarea", "Borrar categorias", "Hacer CSS", "Crear el FormControl"], ok: 0, porque: "Junta mesas: de la tarea tomas datos y de la categoria el Nombre." },
+      { tema: "SQL", q: "UNIQUE en Codigo de TipoBeneficio evita:", opciones: ["Dos beneficios con el mismo codigo", "Usar Angular", "Tener Id", "Hacer GET"], ok: 0, porque: "TB-001 no se puede repetir. Como dos alumnos con el mismo numero de lista." },
+
+      { tema: "Dapper", q: "¿Que hace CommandType.StoredProcedure?", opciones: ["Ejecuta un .cs", "Le dice a Dapper que llame un SP", "Crea tabla", "Abre Angular"], ok: 1, porque: "Marcas 'llamar por nombre de SP', no mandar SQL suelto." },
+      { tema: "Dapper", q: "Dapper se usa mucho porque:", opciones: ["Es micro-ORM liviano: mapea filas a objetos rapido", "Reemplaza Angular", "Es un sistema operativo", "Borra GitHub"], ok: 0, porque: "No es Entity Framework pesado. Es delgado: SQL/SP -> objetos C#." },
+      { tema: "Dapper", q: "QueryAsync<T> tipicamente:", opciones: ["Lee varias filas y las mapea a lista de T", "Solo hace INSERT", "Compila TypeScript", "Crea el controller"], ok: 0, porque: "Para listar tareas: varias filas -> List<TareaDto>." },
+      { tema: "Dapper", q: "ExecuteAsync tipicamente se usa para:", opciones: ["INSERT/UPDATE/DELETE (o SP que no devuelve grid)", "Solo SELECT de miles", "Abrir el browser", "Validar FormGroup"], ok: 0, porque: "Ejecuta la accion. Si el SP solo inserta, Execute encaja (a veces con parametro OUTPUT)." },
+      { tema: "Dapper", q: "DynamicParameters + ParameterDirection.Output sirve para:", opciones: ["Recibir el Id que el SP devolvio por OUTPUT", "Poner CSS", "Crear ruta Angular", "Instalar Node"], ok: 0, porque: "El SP llena @Id OUTPUT. Dapper te deja leer ese valor despues." },
+
+      { tema: "FluentValidation", q: "Titulo de 2 letras con min 3:", opciones: ["Se guarda", "Falla validacion", "Se vuelve SP", "Cierra Angular"], ok: 1, porque: "El guardia no deja pasar titulos enanos." },
+      { tema: "FluentValidation", q: "Regex ^TB-[0-9]{3}$ acepta:", opciones: ["TB-005", "tb-5", "BENEFICIO", "005-TB"], ok: 0, porque: "TB mayusculas, guion, exactamente 3 digitos." },
+      { tema: "FluentValidation", q: "¿Donde suele vivir el validator en este examen?", opciones: ["Application", "Dentro del CSS", "En Firebase", "En el router de Angular solamente"], ok: 0, porque: "Cerca de DTOs y services. Reglas de entrada/negocio." },
+      { tema: "FluentValidation", q: "Si FechaFin viene y es menor que FechaInicio:", opciones: ["Debe fallar la regla", "Se guarda igual siempre", "SQL lo convierte en CORS", "Angular ignora fechas"], ok: 0, porque: "No puedes terminar antes de empezar. El validator lo frena." },
+
+      { tema: "Angular", q: "debounceTime(300) sirve para:", opciones: ["Esperar un poco antes de buscar y no saturar", "Borrar BD", "Color azul", "Validar DNI"], ok: 0, porque: "Esperas a que el usuario deje de tipear 300ms." },
+      { tema: "Angular", q: "distinctUntilChanged() evita:", opciones: ["Buscar otra vez si el texto es igual", "El tema oscuro", "Ordenar tabla", "Crear FormGroup"], ok: 0, porque: "Si el valor no cambio, no repite trabajo." },
+      { tema: "Angular", q: "switchMap en buscador:", opciones: ["Cancela la busqueda anterior si llega otra nueva", "Cambia de monitor", "Crea SP", "Hace JOIN"], ok: 0, porque: "Te quedas con la ultima busqueda. Las viejas se cancelan." },
+      { tema: "Angular", q: "FormGroup / FormControl son de:", opciones: ["Reactive Forms", "SQL Server", "Dapper", "Docker"], ok: 0, porque: "Formularios reactivos de Angular: valores y validadores en codigo." },
+      { tema: "Angular", q: "HttpClient se usa para:", opciones: ["Llamar a la API REST (GET/POST/PATCH)", "Ejecutar SP directo en el browser", "Instalar .NET", "Crear PRIMARY KEY"], ok: 0, porque: "Angular no toca SQL. Habla HTTP con el backend." },
+      { tema: "Angular", q: "¿Por que el front NO debe llamar al SP directo?", opciones: ["Por seguridad/arquitectura: el browser no debe tener la BD abierta", "Porque Angular no tiene botones", "Porque SQL odia el JSON", "Porque GitHub lo prohibe siempre"], ok: 0, porque: "La BD es privada. El API es el mostrador seguro." },
+      { tema: "Angular", q: "Al guardar una tarea y refrescar lista sin F5, tipicamente:", opciones: ["Despues del POST exitoso vuelves a llamar GET", "Borras node_modules", "Reinicias Windows", "Cierras Azure Data Studio"], ok: 0, porque: "POST crea. GET vuelve a traer la tabla actualizada." },
+      { tema: "Angular", q: "valueChanges de un FormControl emite:", opciones: ["Cada vez que cambia el texto", "Solo al compilar", "Solo en SQL", "Nunca"], ok: 0, porque: "Es un chorrito de eventos: letra a letra (o cambio a cambio)." },
+
+      { tema: "API", q: "GET /api/v1/clientes/buscar?q=ab deberia:", opciones: ["200 todos", "400 por menos de 3 chars", "201", "500 siempre"], ok: 1, porque: "Minimo 3. 'ab' = 2 = Bad Request." },
+      { tema: "API", q: "GET vs POST en este examen:", opciones: ["GET lee/lista/busca; POST crea", "GET borra; POST pinta CSS", "Son iguales", "POST solo para login de Google"], ok: 0, porque: "GET pide info. POST manda cuerpo para crear." },
+      { tema: "API", q: "PATCH .../desactivar se usa porque:", opciones: ["Actualiza parcialmente (solo desactiva)", "Crea la base", "Instala Angular", "Hace LIKE"], ok: 0, porque: "No reemplazas todo el beneficio: solo cambias estado." },
+      { tema: "API", q: "JSON del POST de tarea viaja en:", opciones: ["El body del request", "El nombre del WiFi", "El icono de Docker", "El .gitignore"], ok: 0, porque: "El cuerpo HTTP lleva { titulo, fechas, categoriaId... }." },
+
+      { tema: ".NET", q: "Result<T> es:", opciones: ["Cajita exito/error con valor", "Tabla SQL", "Componente Angular", "Zip"], ok: 1, porque: "Verde con dato o roja con mensaje. El controller traduce a HTTP." },
+      { tema: ".NET", q: "async/await sirve para:", opciones: ["No bloquear el hilo mientras esperas I/O (SQL, HTTP)", "Hacer CSS async", "Borrar async la BD", "Evitar interfaces"], ok: 0, porque: "Mientras SQL responde, el server puede atender otras cosas." },
+      { tema: ".NET", q: "interface ITareaRepository define:", opciones: ["El contrato (que metodos existen), no el como", "El HTML", "El color del boton", "El nombre del repo Git"], ok: 0, porque: "Dice ListarAsync/CrearAsync. La clase concreta decide el como (Dapper)." },
+      { tema: ".NET", q: "record ClienteDto(...) en C# es util para:", opciones: ["DTOs inmutables/concisos", "Reemplazar SQL", "Crear sp", "Minificar JS"], ok: 0, porque: "Azucar sintactica para un objetito de datos limpio." },
+      { tema: ".NET", q: "TrustServerCertificate=True en connection string local suele:", opciones: ["Facilitar conectar en dev con certificados locales", "Borrar certificados de Windows", "Activar Angular SSR", "Crear el SP"], ok: 0, porque: "En local a veces el cert no es 'perfecto'. Esta flag ayuda a conectar en practica." },
+
+      { tema: "CORS", q: "Angular :4200 a API :5080 necesita:", opciones: ["CORS en la API", "Apagar WiFi", "Borrar node_modules", "Solo IE"], ok: 0, porque: "Origen distinto = el browser pide permiso. CORS lo da la API." },
+      { tema: "CORS", q: "Sin CORS, en DevTools ves tipicamente:", opciones: ["Error de CORS bloqueando el fetch/XHR", "Un SP nuevo", "Un FormGroup", "Un JOIN"], ok: 0, porque: "El navegador corta la llamada por seguridad." },
+
+      { tema: "GitHub entrega", q: "¿Que NO subir?", opciones: ["Los .sql", "bin/, obj/, node_modules y secretos", "README", "Controllers"], ok: 1, porque: "Basura generada/secretos fuera. Codigo y scripts si." },
+      { tema: "GitHub entrega", q: "El enunciado pide repo:", opciones: ["Publico con tu solucion", "Privado imposible de abrir", "Solo en USB", "Solo screenshot"], ok: 0, porque: "Subes y compartes la URL al evaluador." },
+      { tema: "GitHub entrega", q: "¿Debes incluir el archivo 02_sp_....sql?", opciones: ["Si, en el repo", "No, solo mentalmente", "Solo en Discord", "Solo en Downloads"], ok: 0, porque: "El enunciado lo pide explicito en la entrega." },
+
+      { tema: "Patrones", q: "Flujo tipico del examen:", opciones: ["Angular -> Controller -> Service -> Repository(SP) -> SQL", "SQL -> CSS -> Docker -> Excel", "Controller -> HTML -> SP -> Photoshop", "Validator -> Firebase -> Flutter"], ok: 0, porque: "Pantalla -> puerta -> cerebro -> closet -> base." },
+      { tema: "Patrones", q: "Repository Pattern sirve para:", opciones: ["Esconder el acceso a datos detras de una interfaz", "Pintar botones", "Reemplazar HTTP", "Crear DNS"], ok: 0, porque: "El resto del sistema no se ensucia con detalles de SQL/Dapper." },
+      { tema: "Patrones", q: "¿Por que validar en backend SI Angular tambien valida?", opciones: ["Porque el API puede llamarse sin tu front (Postman/otro cliente)", "Porque Angular miente siempre", "Porque SQL no existe", "Porque CORS lo exige"], ok: 0, porque: "Nunca confies solo en el navegador. El server es la verdad." },
+
+      { tema: "Ejercicio 1", q: "Ejercicio 1 pide principalmente:", opciones: ["Listar y crear tareas E2E (SP crear + API + Angular)", "Solo un SELECT", "Solo Flutter", "Solo PHP"], ok: 0, porque: "No es solo el SP. Es punta a punta." },
+      { tema: "Ejercicio 1", q: "Si CategoriaId esta inactiva, el SP de crear debe:", opciones: ["Rechazar con error", "Crear igual", "Borrar categorias", "Abrir Angular"], ok: 0, porque: "El enunciado: validar categoria existente y Activo=1." },
+      { tema: "Ejercicio 2", q: "Ejercicio 2 agrega respecto al 1:", opciones: ["Desactivacion logica + validacion de codigo TB-000", "Solo debounce", "Solo Firebase", "Solo Docker"], ok: 0, porque: "Alta + listado + desactivar. Codigo con formato." },
+      { tema: "Ejercicio 2", q: "Boton Desactivar deshabilitado cuando:", opciones: ["Ya esta inactivo", "Siempre", "Nunca", "Solo los martes"], ok: 0, porque: "No desactivas dos veces lo mismo." },
+      { tema: "Ejercicio 3", q: "Ejercicio 3 se centra en:", opciones: ["Busqueda async con debounce y ficha del cliente", "Crear tareas", "Desactivar beneficios", "Instalar XAMPP"], ok: 0, porque: "Escribes, esperas, buscas, eliges, ves detalle." },
+      { tema: "Ejercicio 3", q: "Minimo de caracteres del termino:", opciones: ["3", "1", "10", "0"], ok: 0, porque: "Menos de 3 = error de validacion / no buscar." },
+
+      { tema: "Entrevista", q: "¿Por que interfaces?", opciones: ["Se ve bonito nomas", "Desacoplar, testear, cambiar implementacion", "SQL lo exige", "Angular no entiende clases"], ok: 1, porque: "Contrato estable. Implementacion cambiable. Tests con fakes." },
+      { tema: "Entrevista", q: "Explica Clean Architecture en una frase:", opciones: ["Separar UI, reglas de negocio y acceso a datos con dependencias hacia adentro", "Meter todo en el Controller", "Solo usar SP", "Solo usar Angular"], ok: 0, porque: "El centro son las reglas. Detalles (SQL, web) afuera. Asi no se mezclan." },
+      { tema: "Entrevista", q: "Diferencia borrado fisico vs logico:", opciones: ["Fisico DELETE; logico Activo=0", "Son iguales", "Logico borra el disco", "Fisico solo CSS"], ok: 0, porque: "Fisico desaparece. Logico sigue ahi pero marcado." },
+      { tema: "Entrevista", q: "¿Que dirias si te preguntan por Dapper vs EF?", opciones: ["Dapper es liviano y controlas SQL/SP; EF es ORM mas completo con tracking", "Dapper es un IDE", "EF es un SP", "No hay diferencia"], ok: 0, porque: "Respuesta madura: tradeoffs. En este examen piden Dapper+SP." },
+
+      { tema: "PHP/Laravel", q: "En Laravel, el equivalente mental a Controller + Service + Eloquent se parece a:", opciones: ["Controller + (Action/Service) + Eloquent/Query Builder", "Solo Blade sin backend", "Solo Docker", "Solo Dapper"], ok: 0, porque: "Misma idea de capas, otro framework. Secundario en tu entrevista." },
+      { tema: "PHP/Laravel", q: "artisan migrate tipicamente:", opciones: ["Corre migraciones de BD", "Compila Angular", "Crea SP en SQL Server siempre", "Abre Visual Studio"], ok: 0, porque: "Versiona cambios de tablas en Laravel/MySQL etc." },
+      { tema: "Flutter/Firebase", q: "Firebase en apps moviles suele usarse para:", opciones: ["Auth, Firestore/Realtime DB, storage, push (BaaS)", "Reemplazar SQL Server SPs del examen obligatorio", "Compilar .NET", "Hacer FluentValidation"], ok: 0, porque: "Backend como servicio. En tu examen principal no reemplaza el stack .NET+SQL." },
+      { tema: "Flutter/Firebase", q: "Flutter usa el lenguaje:", opciones: ["Dart", "Solo PHP", "Solo T-SQL", "Solo VB6"], ok: 0, porque: "Dart + widgets. Tema secundario de tu evaluacion." },
+
+      { tema: "HTTP status", q: "401 Unauthorized tipicamente:", opciones: ["No autenticado / credenciales", "Recurso no existe (eso es 404)", "Creado ok", "Validacion de formulario"], ok: 0, porque: "No demostraste quien eres." },
+      { tema: "HTTP status", q: "403 Forbidden tipicamente:", opciones: ["Estas autenticado pero no tienes permiso", "Syntax error SQL", "CORS ok", "Debounce"], ok: 0, porque: "Te conozco, pero no puedes pasar a esa sala." },
+      { tema: "HTTP status", q: "500 Internal Server Error:", opciones: ["Se rompio algo en el servidor (excepcion no controlada, etc.)", "El JSON del cliente estaba mal (suele ser 400)", "Todo perfecto", "Solo pasa en Angular"], ok: 0, porque: "Error del server. En examen intenta atrapar y devolver 400/404 cuando puedas." },
+
+      { tema: "LocalDB", q: "Connection a LocalDB suele verse como:", opciones: ["(localdb)\\MSSQLLocalDB", "google.com", "npmjs.org", "localhost:4200"], ok: 0, porque: "Instancia local liviana de SQL para desarrollo." },
+      { tema: "LocalDB", q: "Si el enunciado dice localhost o .\\SQLEXPRESS y tu usas LocalDB:", opciones: ["Ajustas connection string a tu instancia real", "Ignoras la BD", "Usas solo JSON files", "Borras el SP"], ok: 0, porque: "Lo importante es conectar a TU SQL. El nombre de instancia debe coincidir." },
+
+      { tema: "Donde esta Backend", q: "¿Donde esta ITareaRepository?", opciones: ["Application / Interfaces", "Infrastructure / Repositories (ahi esta la clase concreta)", "Controllers", "Angular features"], ok: 0, porque: "La I... es el CONTRATO. Vive en Application/Interfaces. La clase TareaRepository que lo implementa esta en Infrastructure." },
+      { tema: "Donde esta Backend", q: "¿Donde esta TareaRepository (la clase con Dapper)?", opciones: ["Infrastructure / Repositories", "Application / Services", "Api / Controllers", "Validators"], ok: 0, porque: "Ahi llamas al SP con Dapper. Es infraestructura de datos." },
+      { tema: "Donde esta Backend", q: "¿Donde esta TareaService?", opciones: ["Application / Services", "Infrastructure / Persistence", "Solo en Angular", "En el .sql"], ok: 0, porque: "El cerebro: valida y llama al repo. Application/Services." },
+      { tema: "Donde esta Backend", q: "¿Donde esta ITareaService?", opciones: ["Application / Interfaces", "Controllers", "Repositories", "appsettings.json"], ok: 0, porque: "Contrato del service. El controller depende de la interfaz, no de la clase concreta." },
+      { tema: "Donde esta Backend", q: "¿Donde pones CreateTareaValidator?", opciones: ["Application / Validators", "Infrastructure / Persistence", "Angular CSS", "database/01_init"], ok: 0, porque: "FluentValidation de entrada. Cerca de DTOs y services." },
+      { tema: "Donde esta Backend", q: "¿Donde estan TareaDto y CreateTareaRequest?", opciones: ["Application / Dtos", "Infrastructure / Repositories", "Controllers solamente", "Frontend index.html"], ok: 0, porque: "Cajitas de datos del dominio/aplicacion." },
+      { tema: "Donde esta Backend", q: "¿Donde esta Result.cs?", opciones: ["Application / Common", "Infrastructure / Persistence", "Api Controllers", "quiz HTML"], ok: 0, porque: "Utilidad compartida de Application: exito/error con valor." },
+      { tema: "Donde esta Backend", q: "¿Donde esta BaseRepository?", opciones: ["Infrastructure / Persistence", "Application / Interfaces", "Angular core", "Validators"], ok: 0, porque: "Base comun para repos. Guarda acceso a la factory de conexion." },
+      { tema: "Donde esta Backend", q: "¿Donde esta SqlConnectionFactory?", opciones: ["Infrastructure / Persistence", "Application / Services", "features/tareas", "02_sp_crear_tarea.sql"], ok: 0, porque: "Lee ConnectionStrings:Default y crea SqlConnection." },
+      { tema: "Donde esta Backend", q: "¿Donde registras AddScoped ITareaService / TareaService?", opciones: ["Application/DependencyInjection.cs", "En el SP", "En app.html", "En el .gitignore"], ok: 0, porque: "DI de Application registra services y validators." },
+      { tema: "Donde esta Backend", q: "¿Donde registras ITareaRepository -> TareaRepository?", opciones: ["Infrastructure/DependencyInjection.cs", "CreateTareaValidator", "app.routes.ts", "01_init_all.sql"], ok: 0, porque: "DI de Infrastructure registra repos y la factory." },
+      { tema: "Donde esta Backend", q: "¿Donde esta TareasController?", opciones: ["Api / Controllers", "Application / Services", "Infrastructure / Repositories", "frontend/core"], ok: 0, porque: "Puerta HTTP: GET/POST api/v1/tareas." },
+      { tema: "Donde esta Backend", q: "¿Donde esta TiposBeneficioController?", opciones: ["Api / Controllers", "Validators", "Angular beneficios.css", "Persistence"], ok: 0, porque: "Endpoints GET/POST/PATCH desactivar." },
+      { tema: "Donde esta Backend", q: "¿Donde esta ClientesController?", opciones: ["Api / Controllers", "database/", "Interfaces", "pnpm store"], ok: 0, porque: "GET api/v1/clientes/buscar." },
+      { tema: "Donde esta Backend", q: "¿Donde llamas AddApplication() y AddInfrastructure()?", opciones: ["Api / Program.cs", "TareaDto", "clientes.html", "usp_Tarea_Crear"], ok: 0, porque: "Program.cs arma el host y registra capas." },
+      { tema: "Donde esta Backend", q: "¿Donde esta la connection string Default?", opciones: ["Api / appsettings.json", "Application / Interfaces", "Angular api.ts solamente", "Validators"], ok: 0, porque: "appsettings.json ConnectionStrings:Default. SqlConnectionFactory la lee." },
+      { tema: "Donde esta Backend", q: "¿Donde implementas CommandType.StoredProcedure?", opciones: ["Infrastructure / Repositories (ej. TareaRepository)", "Controllers", "FormGroup", "index.html"], ok: 0, porque: "Dapper vive en el repository concreto." },
+      { tema: "Donde esta Backend", q: "Si te preguntan 'muéstrame el contrato del repo de clientes':", opciones: ["IClienteRepository.cs en Application/Interfaces", "ClienteRepository.cs solamente", "clientes.ts", "02_sp_buscar_clientes.sql"], ok: 0, porque: "Contrato = interfaz. Implementacion = ClienteRepository." },
+      { tema: "Donde esta Backend", q: "Si te preguntan 'muéstrame donde se valida TB-001':", opciones: ["CreateTipoBeneficioValidator en Application/Validators", "TiposBeneficioController sin mas", "beneficios.css", "BaseRepository"], ok: 0, porque: "Ahi esta el Matches(^TB-[0-9]{3}$)." },
+      { tema: "Donde esta Backend", q: "Dependencias en rojo en Infrastructure suelen significar:", opciones: ["Falta restore/paquetes NuGet o referencia rota", "Que Angular esta mal", "Que el SP esta perfecto", "Que GitHub cerro"], ok: 0, porque: "Icono de warning: dotnet restore / revisar PackageReference." },
+
+      { tema: "Donde esta Frontend", q: "¿Donde esta la URL base de la API en Angular?", opciones: ["core/api.ts (API_URL)", "Validators", "usp_Tarea_Listar", "Program.cs"], ok: 0, porque: "Constante http://localhost:5080/api/v1 usada por las features." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta la pantalla de tareas?", opciones: ["features/tareas (tareas.ts + tareas.html)", "Controllers", "Infrastructure", "database/"], ok: 0, porque: "Feature Angular del ejercicio 1." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta el FormGroup de nueva tarea?", opciones: ["features/tareas/tareas.ts", "TareaRepository", "appsettings.json", "01_init_all.sql"], ok: 0, porque: "Reactive forms en el componente TypeScript." },
+      { tema: "Donde esta Frontend", q: "¿Donde haces GET/POST de tareas?", opciones: ["features/tareas/tareas.ts con HttpClient", "SqlConnectionFactory", "ITareaService (eso es backend)", "CreateTareaValidator"], ok: 0, porque: "El front llama HTTP. No Dapper." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta la tabla HTML de tareas?", opciones: ["features/tareas/tareas.html", "TareasController.cs", "Result.cs", "appsettings.json"], ok: 0, porque: "Template Angular: @for de tareas." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta la pantalla de beneficios?", opciones: ["features/beneficios", "TipoBeneficioRepository solamente", "quiz/", "Persistence"], ok: 0, porque: "beneficios.ts/html: alta + desactivar." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta el boton Desactivar?", opciones: ["features/beneficios/beneficios.html (+ logica en .ts)", "usp_TipoBeneficio_Desactivar solo", "Program.cs", "IClienteRepository"], ok: 0, porque: "UI en HTML; click llama PATCH en el .ts." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta el buscador con debounce?", opciones: ["features/clientes/clientes.ts", "ClienteRepository (backend)", "Validators", "app.css solamente"], ok: 0, porque: "valueChanges + debounceTime + switchMap ahi." },
+      { tema: "Donde esta Frontend", q: "¿Donde se definen las rutas /tareas /beneficios /clientes?", opciones: ["app.routes.ts", "DependencyInjection.cs", "02_sp_crear_tarea.sql", "BaseRepository"], ok: 0, porque: "Router de Angular." },
+      { tema: "Donde esta Frontend", q: "¿Donde registras provideHttpClient y provideRouter?", opciones: ["app.config.ts", "TareaService.cs", "api.ts solamente", "SqlConnectionFactory"], ok: 0, porque: "ApplicationConfig de Angular." },
+      { tema: "Donde esta Frontend", q: "¿Donde esta el menu con links Tareas/Beneficios/Clientes?", opciones: ["app.html (+ RouterLink en app.ts)", "Controllers", "Interfaces", "init sql"], ok: 0, porque: "Shell de la app." },
+      { tema: "Donde esta Frontend", q: "¿Donde arranca Angular (bootstrap)?", opciones: ["main.ts", "Program.cs", "TareaRepository", "usp_Cliente_Buscar"], ok: 0, porque: "main.ts hace bootstrapApplication(App, appConfig)." },
+      { tema: "Donde esta Frontend", q: "Si el entrevistador dice 'abre el componente del ejercicio 3':", opciones: ["features/clientes/", "features/tareas/", "Controllers/ClientesController solamente", "database/01_init_all.sql"], ok: 0, porque: "Ejercicio 3 = buscador clientes en el front." },
+
+      { tema: "Donde esta BD", q: "¿Donde esta el script que crea tablas y datos semilla?", opciones: ["database/01_init_all.sql (o 01_init_database.sql del ejercicio)", "TareasController", "app.routes.ts", "Result.cs"], ok: 0, porque: "Init de BD. En el examen te lo dan por ejercicio." },
+      { tema: "Donde esta BD", q: "¿Donde esta el SP de crear tarea que TU escribes?", opciones: ["02_sp_crear_tarea.sql", "TareaDto.cs", "tareas.html", "app.config.ts"], ok: 0, porque: "Archivo SQL de entrega del ejercicio 1." },
+      { tema: "Donde esta BD", q: "¿Donde estan los SP de crear y desactivar beneficio?", opciones: ["02_sp_tipos_beneficio.sql", "beneficios.ts solamente", "ITipoBeneficioService", "appsettings.json"], ok: 0, porque: "Entrega SQL del ejercicio 2." },
+      { tema: "Donde esta BD", q: "¿Donde esta el SP de buscar clientes?", opciones: ["02_sp_buscar_clientes.sql", "clientes.css", "Program.cs", "CreateTareaValidator"], ok: 0, porque: "Entrega SQL del ejercicio 3: usp_Cliente_Buscar." },
+      { tema: "Donde esta BD", q: "¿Donde 'vive' usp_Tarea_Listar despues de ejecutarlo?", opciones: ["En SQL Server, base PE_WINET_CRM (Procedures)", "Solo en Angular", "Solo en el zip forever", "En node_modules"], ok: 0, porque: "El .sql lo crea/actualiza. Luego existe en la BD." },
+      { tema: "Donde esta BD", q: "¿Donde ves tablas Tarea / TipoBeneficio / Cliente?", opciones: ["Azure Data Studio -> PE_WINET_CRM -> Tables", "app.routes.ts", "Validators", "HttpClient"], ok: 0, porque: "Explorador de objetos de la BD." },
+      { tema: "Donde esta BD", q: "Si te piden 'ejecuta el init del ejercicio 1':", opciones: ["Abres 01_init_database.sql en ADS/SSMS y Run", "npm start", "dotnet new", "Barajar el quiz"], ok: 0, porque: "SQL primero. Sin BD el API falla." },
+      { tema: "Donde esta BD", q: "La validacion 'categoria activa' del crear tarea esta en:", opciones: ["Dentro del SP usp_Tarea_Crear (y ademas FluentValidation en API para otros campos)", "Solo en CSS", "Solo en app.html", "Solo en debounce"], ok: 0, porque: "El enunciado pide validar CategoriaId en el SP. Titulo/fechas van en FluentValidation." },
+
+      { tema: "Simulacro oral", q: "Entrevistador: '¿Donde disparas el SP de crear?' Tu abres:", opciones: ["TareaRepository.CrearAsync (Dapper StoredProcedure)", "tareas.html", "ITareaService (solo firma)", "app.css"], ok: 0, porque: "El disparo real al SP esta en el repository." },
+      { tema: "Simulacro oral", q: "Entrevistador: '¿Quien llama al repository?'", opciones: ["TareaService", "El CSS", "El SP a si mismo", "index.html"], ok: 0, porque: "Service -> Repository -> SP." },
+      { tema: "Simulacro oral", q: "Entrevistador: '¿Quien recibe el POST del navegador?'", opciones: ["TareasController", "SqlConnectionFactory", "01_init_all.sql", "CreateTipoBeneficioValidator"], ok: 0, porque: "HTTP llega al controller." },
+      { tema: "Simulacro oral", q: "Entrevistador: 'Muéstrame el debounce'", opciones: ["clientes.ts valueChanges pipe", "ClienteRepository", "usp_Cliente_Buscar solamente", "Program.cs"], ok: 0, porque: "debounceTime esta en Angular. El SP solo busca." },
+      { tema: "Simulacro oral", q: "Entrevistador: '¿Que archivo subes con el SP del ej.1?'", opciones: ["02_sp_crear_tarea.sql en el repo", "bin/Debug", "node_modules", ".cursor/"], ok: 0, porque: "El enunciado pide ese archivo en GitHub." },
+      { tema: "Simulacro oral", q: "Orden al abrir carpetas en VS para explicar el flujo:", opciones: ["Dto/Validator -> Interface -> Service -> Repository -> Controller", "Controller -> SP -> Angular CSS -> DTO", "Solo Repository", "Solo quiz"], ok: 0, porque: "De adentro (reglas) hacia afuera (HTTP), o al reves del request; se claro y consistente." }
+    ];
+
+    let filtro = "Todos";
+    let deck = [];
+    let i = 0;
+    let aciertos = 0;
+    let respondida = false;
+    let respondidas = new Set();
+
+    const card = document.getElementById("card");
+    const progreso = document.getElementById("progreso");
+    const score = document.getElementById("score");
+    const totalPill = document.getElementById("totalPill");
+    const filtros = document.getElementById("filtros");
+
+    function temas() {
+      const set = new Set(banco.map(x => x.tema));
+      return ["Todos", ...[...set].sort()];
+    }
+
+    function barajar(arr) {
+      const a = arr.slice();
+      for (let k = a.length - 1; k > 0; k--) {
+        const j = Math.floor(Math.random() * (k + 1));
+        [a[k], a[j]] = [a[j], a[k]];
+      }
+      return a;
+    }
+
+    function armarDeck() {
+      const base = filtro === "Todos" ? banco.slice() : banco.filter(x => x.tema === filtro);
+      deck = barajar(base);
+      i = 0;
+      aciertos = 0;
+      respondidas = new Set();
+      score.textContent = "Aciertos: 0";
+      totalPill.textContent = "Total: " + deck.length;
+      render();
+    }
+
+    function pintarFiltros() {
+      filtros.innerHTML = "";
+      temas().forEach(t => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "filtro" + (t === filtro ? " on" : "");
+        b.textContent = t;
+        b.onclick = () => { filtro = t; armarDeck(); pintarFiltros(); };
+        filtros.appendChild(b);
+      });
+      const mix = document.createElement("button");
+      mix.type = "button";
+      mix.className = "filtro";
+      mix.textContent = "Barajar";
+      mix.onclick = () => armarDeck();
+      filtros.appendChild(mix);
+    }
+
+    function render() {
+      respondida = false;
+      if (i >= deck.length) {
+        const nota = deck.length ? Math.round((aciertos / deck.length) * 100) : 0;
+        let msg = "Sigue practicando las rojas.";
+        if (nota >= 90) msg = "Nivel fuerte. Vas listo para la oral.";
+        else if (nota >= 75) msg = "Bien. Repasa los temas flacos y otra ronda.";
+        else if (nota >= 60) msg = "Vas a medias. Filtra por tema y machaca.";
+        card.innerHTML = `
+          <div class="fin">
+            <h2>Terminado</h2>
+            <p><strong>${aciertos}</strong> / <strong>${deck.length}</strong> (${nota}%)</p>
+            <p>${msg}</p>
+            <div class="actions" style="justify-content:center">
+              <button class="nav" id="reiniciar">Otra vez (barajado)</button>
+            </div>
+          </div>`;
+        document.getElementById("reiniciar").onclick = () => armarDeck();
+        progreso.textContent = "Fin";
+        return;
+      }
+
+      const p = deck[i];
+      progreso.textContent = `Pregunta ${i + 1} / ${deck.length}`;
+      card.innerHTML = `
+        <div class="tema">${p.tema}</div>
+        <div class="pregunta">${p.q}</div>
+        <div id="ops"></div>
+        <div class="feedback" id="fb"></div>
+        <div class="actions">
+          <button class="nav secondary" id="prev" ${i === 0 ? "disabled" : ""}>Anterior</button>
+          <button class="nav" id="next" disabled>Siguiente</button>
+        </div>`;
+
+      const ops = document.getElementById("ops");
+      p.opciones.forEach((txt, idx) => {
+        const b = document.createElement("button");
+        b.className = "opcion";
+        b.textContent = txt;
+        b.onclick = () => elegir(idx, b);
+        ops.appendChild(b);
+      });
+
+      document.getElementById("next").onclick = () => { i += 1; render(); };
+      document.getElementById("prev").onclick = () => { if (i > 0) { i -= 1; render(); } };
+    }
+
+    function elegir(idx, btn) {
+      if (respondida) return;
+      respondida = true;
+      const p = deck[i];
+      const botones = [...document.querySelectorAll(".opcion")];
+      botones.forEach((b, j) => {
+        b.disabled = true;
+        if (j === p.ok) b.classList.add("correcta");
+      });
+      const fb = document.getElementById("fb");
+      fb.classList.add("show");
+      const key = i + ":" + p.q;
+      const primera = !respondidas.has(key);
+      if (idx === p.ok) {
+        if (primera) {
+          aciertos += 1;
+          respondidas.add(key);
+          score.textContent = `Aciertos: ${aciertos}`;
+        }
+        btn.classList.add("correcta");
+        fb.classList.add("ok");
+        fb.classList.remove("bad");
+        fb.innerHTML = `<strong>Correcta</strong>${p.porque}`;
+      } else {
+        if (primera) respondidas.add(key);
+        btn.classList.add("incorrecta");
+        fb.classList.add("bad");
+        fb.classList.remove("ok");
+        fb.innerHTML = `<strong>Incorrecta</strong>La buena era: "${p.opciones[p.ok]}".<br/><br/>${p.porque}`;
+      }
+      document.getElementById("next").disabled = false;
+    }
+
+    pintarFiltros();
+    armarDeck();
+  </script>
+</body>
+</html>
