@@ -1,3 +1,3 @@
 ﻿# Practica entrevista
 
-Abrir `practica-entrevista.html` en el navegador.
+Demo: raiz del sitio (index.html).
